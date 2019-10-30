@@ -70,7 +70,8 @@ ui <- dashboardPage(
                 choices=as.list(oecd_numvars),selected="Self"),
     sliderInput("nperm", "Please give a number of permutations:", 
                 min=10, max=1000, value=10, step=10),
-    actionButton("go", "Go!") 
+    actionButton("go", "Go!"),
+    checkboxInput("animate", "Animation?", value = FALSE)
   ),
   dashboardBody(
     # Boxes need to be put in a row (or column)
@@ -155,26 +156,30 @@ observeEvent(input$go,{
            y=input$variable)}
   })
   
-  # #######################
-  # # Permutation Animation
-  # output$plotAnimated <- renderImage({
-  #   outfile <- tempfile(fileext='.gif')
-  #    
-  #   p <- ggplot(shuffled_data, aes(x = Shuffled_Country, y = Y, color = Country)) +
-  #     geom_point() +
-  #     stat_summary(fun.data = "mean_cl_boot", aes(colour = Shuffled_Country), size = 1.5, alpha = 0.5) +
-  #     labs(title = "Shuffle: {closest_state}") +
-  #     transition_states(Shuffle)
-  #   
-  #   anim_save("outfile.gif", animate(p))
-  #   
-  #   # Return a list containing the filename
-  #   list(src = "outfile.gif",
-  #        contentType = 'image/gif'
-  #        )
-  #   })
-  #    
-  # 
+  #######################
+  # Permutation Animation
+  output$plotAnimated <- renderImage({
+
+    outfile <- tempfile(fileext='.gif')
+    if (input$go){
+      if (input$animate){
+        p <- ggplot(data$shuffled_data, aes(x = Shuffled_Country, y = Y, color = Country)) +
+          geom_point() +
+          stat_summary(fun.data = "mean_cl_boot", aes(colour = Shuffled_Country), size = 1.5, alpha = 0.5) +
+          labs(title = "Shuffle: {closest_state}") +
+          transition_states(Shuffle)
+    anim_save("outfile.gif", animate(p))
+      }
+    }
+
+    # Return a list containing the filename
+    list(src = "outfile.gif",
+         contentType = 'image/gif'
+         )
+    })
+
+
+
   ######################
   # Permuted Differences
   output$plotDiffs <- renderPlot({
