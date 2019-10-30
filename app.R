@@ -57,25 +57,20 @@ Variables <- oecd_numvars
 ######################################################
 
 ui <- dashboardPage(
-  dashboardHeader(title = "Basic dashboard"),
+  dashboardHeader(title = "OECD Permutation data"),
   dashboardSidebar(
-      h5("Permutation test for OECD data"),
+    h5("Permutation test for OECD data"),
     h5("Please select two OECD countries"),
     br(""),
-    selectInput("Country1", "Please select the first country:",
-                
+    selectInput("country1", "Please select the first country:",
                 choices=as.list(Countries),selected="Germany"),
-    selectInput("Country2", "Please select the second country:",
-                            
+    selectInput("country2", "Please select the second country:",
                 choices=as.list(Countries),selected="Poland"),
-
-    selectInput("my_variable", "Please select the variable:",
-                
+    selectInput("variable", "Please select the variable:",
                 choices=as.list(oecd_numvars),selected="Self"),
-    
-    sliderInput("no. permutations", "Please give a number of permutations:", 
-                min=100, max=150, value=100, step=10),
-    actionButton("goButton", "Test") 
+    sliderInput("nperm", "Please give a number of permutations:", 
+                min=10, max=1000, value=10, step=10),
+    actionButton("go", "Go!") 
   ),
   dashboardBody(
     # Boxes need to be put in a row (or column)
@@ -94,11 +89,14 @@ ui <- dashboardPage(
 
 server <- function(input, output) {
 
+data <- reactiveValues()
 
+
+observeEvent(input$go,{ 
   #################################################
   # Selection of Countries and Variable of Interest
-  my_countries <- c("Poland", "Germany")
-  my_variable <- "Self"
+  my_countries <- (c(input$country1, input$country2))
+  my_variable <- (input$variable)
   
   my_data <- oecd %>%
     select("Country", "Region", my_variable) %>%
@@ -108,18 +106,17 @@ server <- function(input, output) {
   # Observed Difference
   Obs_Diff <- diffmean(Y ~ Country, data = my_data)
   
-  
   #################################################
   # Monte Carlo Permutation
   # Number of Permutations
   
-  perms <- 100
+  perms <- input$nperm
   set.seed(1896)
   
   shuffled_data <- list()
   
-  for(i in 1:perms)
-    {
+  for(i in 1:input$nperm)
+  {
     # Shuffle Country
     my_shuffle <- my_data %>%
       mutate(Shuffled_Country = shuffle(Country)) %>%
@@ -134,66 +131,79 @@ server <- function(input, output) {
     group_by(Shuffle) %>%
     summarise(Diff_Mean = diffmean(Y ~ Shuffled_Country)) %>%
     ungroup()
+  
+  
+  isolate({
+    data$my_data <- my_data
+    data$Obs_Diff <- Obs_Diff
+    data$shuffled_data <- shuffled_data
+    data$Shuffled_Diffs <- Shuffled_Diffs
+    })
+  })
+
 
   
   
   ##############################
   # Scatterplot of Observed data
   output$plotObserved <- renderPlot({
-    ggplot(my_data, aes(x = Country, y = Y, color = Country)) +
+    if (input$go){
+    ggplot(data$my_data, aes(x = Country, y = Y, color = Country)) +
       geom_point() +
       stat_summary(fun.data = "mean_cl_boot", aes(colour = Country), size = 1.5, alpha = 0.5) +
-      labs(title = paste("Observed difference in means:", Obs_Diff),
-           y=my_variable)
+      labs(title = paste("Observed difference in means:", data$Obs_Diff),
+           y=input$variable)}
   })
   
-  #######################
-  # Permutation Animation
-  output$plotAnimated <- renderImage({
-    outfile <- tempfile(fileext='.gif')
-     
-    p <- ggplot(shuffled_data, aes(x = Shuffled_Country, y = Y, color = Country)) +
-      geom_point() +
-      stat_summary(fun.data = "mean_cl_boot", aes(colour = Shuffled_Country), size = 1.5, alpha = 0.5) +
-      labs(title = "Shuffle: {closest_state}") +
-      transition_states(Shuffle)
-    
-    anim_save("outfile.gif", animate(p))
-    
-    # Return a list containing the filename
-    list(src = "outfile.gif",
-         contentType = 'image/gif'
-         )
-    })
-     
-  
+  # #######################
+  # # Permutation Animation
+  # output$plotAnimated <- renderImage({
+  #   outfile <- tempfile(fileext='.gif')
+  #    
+  #   p <- ggplot(shuffled_data, aes(x = Shuffled_Country, y = Y, color = Country)) +
+  #     geom_point() +
+  #     stat_summary(fun.data = "mean_cl_boot", aes(colour = Shuffled_Country), size = 1.5, alpha = 0.5) +
+  #     labs(title = "Shuffle: {closest_state}") +
+  #     transition_states(Shuffle)
+  #   
+  #   anim_save("outfile.gif", animate(p))
+  #   
+  #   # Return a list containing the filename
+  #   list(src = "outfile.gif",
+  #        contentType = 'image/gif'
+  #        )
+  #   })
+  #    
+  # 
   ######################
   # Permuted Differences
   output$plotDiffs <- renderPlot({
-    ggplot(Shuffled_Diffs, aes(x = Shuffle, y = Diff_Mean, color = abs(Diff_Mean) >= abs(Obs_Diff))) +
+    if (input$go){
+    ggplot(data$Shuffled_Diffs, aes(x = Shuffle, y = Diff_Mean, color = abs(Diff_Mean) >= abs(data$Obs_Diff))) +
       geom_point() +
-      geom_hline(yintercept = abs(Obs_Diff)) +
-      geom_hline(yintercept = -abs(Obs_Diff)) + 
-      labs(title = paste("Number of permutations with larger difference in means \n than observed:", 
-                         sum(abs(Shuffled_Diffs$Diff_Mean) >= abs(Obs_Diff)),
-                         "\n for countries ", my_countries[1], "and ", my_countries[2]),
-           subtitle = paste("Observed difference in means:", Obs_Diff),
-           y = paste("Difference in means of Variable:\n ", my_variable)) +
-      theme(legend.position = "none")
+      geom_hline(yintercept = abs(data$Obs_Diff)) +
+      geom_hline(yintercept = -abs(data$Obs_Diff)) +
+      labs(title = paste("Number of permutations with larger difference in means \n than observed:",
+                         sum(abs(data$Shuffled_Diffs$Diff_Mean) >= abs(data$Obs_Diff)),
+                         "\n for countries ", input$country1, "and ", input$country2),
+           subtitle = paste("Observed difference in means:", data$Obs_Diff),
+           y = paste("Difference in means of Variable:\n ", input$variable)) +
+      theme(legend.position = "none")}
   })
-  
+
   ##########################
   # Permutation Distribution
   output$plotDist <- renderPlot({
-    ggplot(Shuffled_Diffs, aes(x = Diff_Mean, fill = abs(Diff_Mean) >= abs(Obs_Diff))) + 
+    if (input$go){
+    ggplot(data$Shuffled_Diffs, aes(x = Diff_Mean, fill = abs(Diff_Mean) >= abs(data$Obs_Diff))) +
       geom_histogram(center=0, bins=21) +
       geom_rug() +
-      geom_vline(xintercept = Obs_Diff) +
-      labs(title = paste("Number of permutations with larger difference in means \n than observed:", 
-                         sum(abs(Shuffled_Diffs$Diff_Mean) >= abs(Obs_Diff)),
-                         "\n for countries ", my_countries[1], "and ", my_countries[2]),
-           x = paste("Difference in means of Variable:\n ", my_variable)) +
-      theme(legend.position = "none")
+      geom_vline(xintercept = data$Obs_Diff) +
+      labs(title = paste("Number of permutations with larger difference in means \n than observed:",
+                         sum(abs(data$Shuffled_Diffs$Diff_Mean) >= abs(data$Obs_Diff)),
+                         "\n for countries ",  input$country1, "and ",  input$country2),
+           x = paste("Difference in means of Variable:\n ",  input$variable)) +
+      theme(legend.position = "none")}
   })
   
   
