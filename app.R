@@ -48,6 +48,8 @@ Countries <- oecd %>%
 
 Variables <- oecd_numvars
 
+# Number of permutations
+nperm <- 100
 ######################################################
 ### End: Data preprocessing
 ######################################################
@@ -68,16 +70,13 @@ ui <- dashboardPage(
                 choices=as.list(Countries),selected="Poland"),
     selectInput("variable", "Please select the variable:",
                 choices=as.list(oecd_numvars),selected="Self"),
-    sliderInput("nperm", "Please give a number of permutations:", 
-                min=10, max=1000, value=10, step=10),
-    actionButton("go", "Go!"),
-    checkboxInput("animate", "Animation?", value = FALSE)
+    actionButton("go", "Go!")
   ),
   dashboardBody(
     # Boxes need to be put in a row (or column)
     fluidRow(
-      box(plotOutput("plotObserved", height = 450)),
-      box(imageOutput("plotAnimated", height = 450)),     
+      box(plotOutput("plotObserved", height = 500)),
+      # box(imageOutput("plotAnimated", height = 450)),     
       box(plotOutput("plotDiffs", height = 250)),
       box(plotOutput("plotDist", height = 250))
       )
@@ -111,12 +110,11 @@ observeEvent(input$go,{
   # Monte Carlo Permutation
   # Number of Permutations
   
-  perms <- input$nperm
   set.seed(1896)
   
   shuffled_data <- list()
   
-  for(i in 1:input$nperm)
+  for(i in 1:nperm)
   {
     # Shuffle Country
     my_shuffle <- my_data %>%
@@ -139,6 +137,8 @@ observeEvent(input$go,{
     data$Obs_Diff <- Obs_Diff
     data$shuffled_data <- shuffled_data
     data$Shuffled_Diffs <- Shuffled_Diffs
+    data$my_countries <- my_countries
+    data$my_variable <- my_variable
     })
   })
 
@@ -153,30 +153,30 @@ observeEvent(input$go,{
       geom_point() +
       stat_summary(fun.data = "mean_cl_boot", aes(colour = Country), size = 1.5, alpha = 0.5) +
       labs(title = paste("Observed difference in means:", data$Obs_Diff),
-           y=input$variable)}
+           y=data$my_variable)}
   })
   
-  #######################
-  # Permutation Animation
-  output$plotAnimated <- renderImage({
-
-    outfile <- tempfile(fileext='.gif')
-    if (input$go){
-      if (input$animate){
-        p <- ggplot(data$shuffled_data, aes(x = Shuffled_Country, y = Y, color = Country)) +
-          geom_point() +
-          stat_summary(fun.data = "mean_cl_boot", aes(colour = Shuffled_Country), size = 1.5, alpha = 0.5) +
-          labs(title = "Shuffle: {closest_state}") +
-          transition_states(Shuffle)
-    anim_save("outfile.gif", animate(p))
-      }
-    }
-
-    # Return a list containing the filename
-    list(src = "outfile.gif",
-         contentType = 'image/gif'
-         )
-    })
+  # #######################
+  # # Permutation Animation
+  # output$plotAnimated <- renderImage({
+  # 
+  #   outfile <- tempfile(fileext='.gif')
+  #   if (input$go){
+  #     if (input$animate){
+  #       p <- ggplot(data$shuffled_data, aes(x = Shuffled_Country, y = Y, color = Country)) +
+  #         geom_point() +
+  #         stat_summary(fun.data = "mean_cl_boot", aes(colour = Shuffled_Country), size = 1.5, alpha = 0.5) +
+  #         labs(title = "Shuffle: {closest_state}") +
+  #         transition_states(Shuffle)
+  #   anim_save("outfile.gif", animate(p))
+  #     }
+  #   }
+  # 
+  #   # Return a list containing the filename
+  #   list(src = "outfile.gif",
+  #        contentType = 'image/gif'
+  #        )
+  #   })
 
 
 
@@ -190,9 +190,9 @@ observeEvent(input$go,{
       geom_hline(yintercept = -abs(data$Obs_Diff)) +
       labs(title = paste("Number of permutations with larger difference in means \n than observed:",
                          sum(abs(data$Shuffled_Diffs$Diff_Mean) >= abs(data$Obs_Diff)),
-                         "\n for countries ", input$country1, "and ", input$country2),
+                         "\n for countries ", data$my_countries[1], "and ", data$my_countries[2]),
            subtitle = paste("Observed difference in means:", data$Obs_Diff),
-           y = paste("Difference in means of Variable:\n ", input$variable)) +
+           y = paste("Difference in means of Variable:\n ", data$my_variable)) +
       theme(legend.position = "none")}
   })
 
@@ -205,9 +205,9 @@ observeEvent(input$go,{
       geom_rug() +
       geom_vline(xintercept = data$Obs_Diff) +
       labs(title = paste("Number of permutations with larger difference in means \n than observed:",
-                         sum(abs(data$Shuffled_Diffs$Diff_Mean) >= abs(data$Obs_Diff)),
-                         "\n for countries ",  input$country1, "and ",  input$country2),
-           x = paste("Difference in means of Variable:\n ",  input$variable)) +
+                         sum(abs(data$Shuffled_Diffs$Diff_Mean) >= abs(data$Obs_Diff)), " of ", nperm,
+                         "\n for countries ",  data$my_countries[1], "and ",  data$my_countries[2]),
+           x = paste("Difference in means of Variable:\n ",  data$my_variable)) +
       theme(legend.position = "none")}
   })
   
