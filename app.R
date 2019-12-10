@@ -2,9 +2,9 @@
 library(openxlsx)
 library(Hmisc)
 library(mosaic)
-library(gganimate)
 library(shiny)
 library(shinydashboard)
+library(markdown)
 
 ######################################################
 ### Start: Data preprocessing
@@ -75,10 +75,11 @@ ui <- dashboardPage(
   dashboardBody(
     # Boxes need to be put in a row (or column)
     fluidRow(
-      box(plotOutput("plotObserved", height = 500)),
+      box(plotOutput("plotObserved", height = 500), title="Observed Difference"),
       # box(imageOutput("plotAnimated", height = 450)),     
-      box(plotOutput("plotDiffs", height = 250)),
-      box(plotOutput("plotDist", height = 250))
+      box(plotOutput("plotDiffs", height = 205), title="Permuted Differences"),
+      box(plotOutput("plotDist", height = 205), title="Permutation Distribution"),
+      box(withMathJax(includeHTML("Background.html")), width = 12, title = "Background")
       )
     )
   )
@@ -108,7 +109,7 @@ observeEvent(input$go,{
   
   #################################################
   # Monte Carlo Permutation
-  # Number of Permutations
+
   
   set.seed(1896)
   
