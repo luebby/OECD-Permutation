@@ -69,7 +69,7 @@ ui <- dashboardPage(
     selectInput("country2", "Please select the second country:",
                 choices=as.list(Countries),selected="Poland"),
     selectInput("variable", "Please select the variable:",
-                choices=as.list(oecd_numvars),selected="Self"),
+                choices=as.list(oecd_numvars),selected="Labour"),
     actionButton("go", "Go!")
   ),
   dashboardBody(
